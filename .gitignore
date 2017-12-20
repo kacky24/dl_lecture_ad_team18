@@ -1,2 +1,9 @@
+# dataset
 dataset/*
 !.gitkeep
+
+.python-version
+.ipynb_checkpoints
+__pycache__/
+
+*.swp
