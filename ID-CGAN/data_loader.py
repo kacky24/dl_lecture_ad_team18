@@ -1,6 +1,6 @@
 import os
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+import transformer
 import cv2
 
 
@@ -37,9 +37,9 @@ def get_data_loader(input_dir, target_dir, batch_size,
                     transform=None, shuffle=False, num_workers=0):
     '''return data loader'''
     if transform is None:
-        transform = Compose([
-            Rescale((256, 256)),
-            ToTensor()
+        transform = transformer.Compose([
+            transformer.Rescale((256, 256)),
+            transformer.ToTensor()
             ])
 
     snow_dataset = SnowDataset(input_dir, target_dir, transform)
@@ -49,54 +49,3 @@ def get_data_loader(input_dir, target_dir, batch_size,
                              shuffle=shuffle,
                              num_workers=num_workers)
     return data_loader
-
-
-class ToTensor:
-    '''ndarray -> torch.Tonsor'''
-    def __init__(self):
-        pass
-
-    def __call__(self, input_img, target_img):
-        transform = transforms.ToTensor()
-        input_img = transform(input_img)
-        target_img = transform(target_img)
-        return input_img, target_img
-
-
-class Rescale:
-    '''Rescale the image to a given size
-    Args:
-        output_size(int or tuple)
-    '''
-    def __init__(self, output_size):
-        assert isinstance(output_size, tuple)
-        self.output_size = output_size
-
-    def __call__(self, input_img, target_img):
-        new_h, new_w = self.output_size
-        new_h, new_w = int(new_h), int(new_w)
-        input_img = cv2.resize(input_img, (new_h, new_w))
-        target_img = cv2.resize(target_img, (new_h, new_w))
-
-        return input_img, target_img
-
-
-class Compose:
-    """
-    Composes several transforms together.
-    Args:
-        transforms: list of transforms to compose.
-    Example:
-        >>> transforms.Compose([
-        >>>     transforms.CenterCrop(10),
-        >>>     transforms.ToTensor(),
-        >>> ])
-    """
-
-    def __init__(self, transforms):
-        self.transforms = transforms
-
-    def __call__(self, input_img, target_img):
-        for t in self.transforms:
-            input_img, target_img = t(input_img, target_img)
-        return input_img, target_img
