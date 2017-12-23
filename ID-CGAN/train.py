@@ -1,6 +1,7 @@
 import argparse
 import os
 import torch
+import torch.nn as nn
 from torch.autograd import Variable
 from data_loader import get_data_loader
 from models import Generator, Discriminator, VggTransformar
@@ -10,6 +11,12 @@ def to_var(x, volatile=False):
     if torch.cuda.is_available():
         x = x.cuda()
     return Variable(x, volatile=volatile)
+
+
+def save_checkpoint(state, filename):
+    torch.save(state, filename)
+    # if is_best:
+    #     shutil.copyfile(filename, 'model_best.ckpt')
 
 
 def main(args):
@@ -25,8 +32,81 @@ def main(args):
                                   shuffle=True, num_workers=6)
 
     # build model
-    G = Generator()
-    D = Discriminator()
+    G = Generator(3, 3)
+    D = Discriminator(6)
+    if torch.cuda.is_available():
+        G = G.cuda()
+        D = D.cuda()
+
+    # loss
+    vgg_model = VggTransformar()
+    criterion_mse = nn.MSELoss()
+    criterion_bce = nn.BCELoss()
+    if torch.cuda.is_available():
+        vgg_model = vgg_model.cuda()
+        criterion_mse = criterion_mse.cuda()
+        criterion_bce = criterion_bce.cuda()
+    zero_labels = Variable(torch.zeross(batch_size, 1))
+    one_labels = Variable(torch.ones(batch_size, 1))
+    lambda_a = args.lambda_a
+    lambda_e = args.lambda_e
+    lambda_p = args.lambda_p
+
+    # optimizer
+    optimizer_G = torch.optim.Adam(G.parameters(), lr=0.002,
+                                   betas=(0.5, 0.999))
+    optimizer_D = torch.optim.Adam(D.parameters(), lr=0.002,
+                                   betas=(0.5, 0.999))
+
+    # train
+    epoch_num = args.epoch_num
+    total_step = len(data_loader)
+
+    for epoch in range(1, epoch_num + 1):
+        for i, (input_imgs, target_imgs) in enumerate(data_loader):
+            input_imgs = to_var(input_imgs)
+            target_imgs = to_var(target_imgs)
+
+            # generate images
+            generated_imgs = G(input_imgs)
+
+            # update discriminator
+            optimizer_D.zero_grad()
+            negative_examples = D(input_imgs, generated_imgs.detach())
+            positive_examples = D(input_imgs, target_imgs)
+            d_loss = 0.5 * (
+                criterion_bce(negative_examples, zero_labels) +
+                criterion_bce(positive_examples, one_labels)
+                )
+            d_loss.backward()
+            optimizer_D.step()
+
+            # update generator
+            optimizer_G.zero_grad()
+            negative_examples = D(input_imgs, generated_imgs)
+            g_loss_a = criterion_bce(negative_examples, one_labels)
+            g_loss_e = criterion_mse(generated_imgs, target_imgs)
+            g_loss_p = criterion_mse(vgg_model(generated_imgs),
+                                     vgg_model(target_imgs))
+            g_loss = lambda_a * g_loss_a + lambda_e * g_loss_e + \
+                lambda_p * g_loss_p
+            g_loss.backward()
+            optimizer_G.step()
+
+            # print log
+            if i % 1000 == 0:
+                print("Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, D_Loss: %.4f"
+                      % (epoch, epoch_num, i + 1, total_step,
+                          g_loss.data[0], d_loss.data[0]))
+
+        # save
+        save_checkpoint({
+            'epoch': epoch,
+            'state_dict_g': G.state_dict(),
+            'state_dict_d': D.state_dict(),
+            'optimizer_g': optimizer_G.state_dict(),
+            'optimizer_d': optimizer_D.state_dict()
+            }, os.path.join(model_path, '%03d.ckpt' % (epoch)))
 
 
 if __name__ == '__main__':
@@ -40,6 +120,13 @@ if __name__ == '__main__':
                         default='../dataset/original',
                         help='path for origial image directory')
     parser.add_argument('--batch_size', type=int, dafault=7)
+    parser.add_argument('--epoch_num', type=int, default=10)
+    parser.add_argument('--lambda_a', type=float, default=6.6e-3,
+                        help='coefficient for adversarial loss')
+    parser.add_argument('--lambda_e', type=float, default=1,
+                        help='coefficient for per-pixel loss')
+    parser.add_argument('--lambda_p', type=float, default=1,
+                        help='coefficient for perceptual loss')
 
     args = parser.parse_args()
 
