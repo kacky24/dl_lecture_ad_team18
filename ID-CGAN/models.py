@@ -52,7 +52,12 @@ class Discriminator(nn.Module):
         self.cbp2 = CBP(4*K, 8*K, (4, 4), (1, 1), (1, 1))
         self.conv1 = nn.Conv2d(8*K, 1, (4, 4), (1, 1), (1, 1))
 
-    def forward(self, images):
+    def forward(self, images1, images2):
+        '''
+        images1: snow images
+        images2: normal images or generated images
+        '''
+        images = torch.cat((images1, images2), 1)
         features = self.conv0(images)
         features = self.bn(features)
         features = self.cbp0(features)
