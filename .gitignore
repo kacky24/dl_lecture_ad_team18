@@ -1,6 +1,7 @@
 # dataset
 dataset/*
 !.gitkeep
+!get_data.sh
 
 .python-version
 .ipynb_checkpoints
