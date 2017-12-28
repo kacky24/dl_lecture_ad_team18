@@ -14,6 +14,17 @@ class ToTensor:
         return input_img, target_img
 
 
+class Normalize:
+    '''0 - 255 -> -1 - 1'''
+    def __init__(self):
+        pass
+
+    def __call__(self, input_img, target_img):
+        input_img = input_img / 127.5 - 1
+        target_img = target_img / 127.5 - 1
+        return input_img, target_img
+
+
 class Rescale:
     '''Rescale the image to a given size
     Args:
