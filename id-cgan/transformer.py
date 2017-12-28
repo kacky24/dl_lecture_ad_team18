@@ -1,4 +1,4 @@
-from torchvision import transforms
+import torch
 import cv2
 
 
@@ -8,9 +8,10 @@ class ToTensor:
         pass
 
     def __call__(self, input_img, target_img):
-        transform = transforms.ToTensor()
-        input_img = transform(input_img)
-        target_img = transform(target_img)
+        input_img = input_img.transpose(2, 0, 1)
+        target_img = target_img.transpose(2, 0, 1)
+        input_img = torch.from_numpy(input_img)
+        target_img = torch.from_numpy(target_img)
         return input_img, target_img
 
 
