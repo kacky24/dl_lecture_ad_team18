@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 from data_loader import get_data_loader
 from models import Generator, Discriminator, VggTransformar
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def to_var(x, volatile=False):
@@ -27,9 +28,10 @@ def main(args):
     # load data_loader
     input_dir = args.input_dir
     target_dir = args.target_dir
+    img_list_path = args.img_list_path
     batch_size = args.batch_size
-    data_loader = get_data_loader(input_dir, target_dir, batch_size,
-                                  shuffle=True, num_workers=6)
+    data_loader = get_data_loader(input_dir, target_dir, img_list_path,
+                                  batch_size, shuffle=True, num_workers=6)
 
     # build model
     G = Generator(3, 3)
@@ -46,8 +48,6 @@ def main(args):
         vgg_model = vgg_model.cuda()
         criterion_mse = criterion_mse.cuda()
         criterion_bce = criterion_bce.cuda()
-    zero_labels = Variable(torch.zeross(batch_size, 1))
-    one_labels = Variable(torch.ones(batch_size, 1))
     lambda_a = args.lambda_a
     lambda_e = args.lambda_e
     lambda_p = args.lambda_p
@@ -74,6 +74,13 @@ def main(args):
             optimizer_D.zero_grad()
             negative_examples = D(input_imgs, generated_imgs.detach())
             positive_examples = D(input_imgs, target_imgs)
+
+            zero_labels = Variable(torch.zeros(negative_examples.size()))
+            one_labels = Variable(torch.ones(positive_examples.size()))
+            if torch.cuda.is_available():
+                zero_labels = zero_labels.cuda()
+                one_labels = one_labels.cuda()
+
             d_loss = 0.5 * (
                 criterion_bce(negative_examples, zero_labels) +
                 criterion_bce(positive_examples, one_labels)
@@ -87,7 +94,9 @@ def main(args):
             g_loss_a = criterion_bce(negative_examples, one_labels)
             g_loss_e = criterion_mse(generated_imgs, target_imgs)
             g_loss_p = criterion_mse(vgg_model(generated_imgs),
-                                     vgg_model(target_imgs))
+                                     Variable(vgg_model(target_imgs).data,
+                                              requires_grad=False)
+                                     )
             g_loss = lambda_a * g_loss_a + lambda_e * g_loss_e + \
                 lambda_p * g_loss_p
             g_loss.backward()
@@ -114,12 +123,15 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str, default='pretrained_models',
                         help='path for saving trained models')
     parser.add_argument('--input_dir', type=str,
-                        default='../dataset/reverse_snow',
+                        default='../dataset/snow',
                         help='path for snow image directory')
-    parser.add_argument('target_dir', type=str,
+    parser.add_argument('--target_dir', type=str,
                         default='../dataset/original',
                         help='path for origial image directory')
-    parser.add_argument('--batch_size', type=int, dafault=7)
+    parser.add_argument('--img_list_path', type=str,
+                        default='../dataset/valid_img_list.json',
+                        help='path for valid_img_list')
+    parser.add_argument('--batch_size', type=int, default=7)
     parser.add_argument('--epoch_num', type=int, default=10)
     parser.add_argument('--lambda_a', type=float, default=6.6e-3,
                         help='coefficient for adversarial loss')

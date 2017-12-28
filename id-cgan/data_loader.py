@@ -1,4 +1,5 @@
 import os
+import json
 from torch.utils.data import Dataset, DataLoader
 import transformer
 import cv2
@@ -6,7 +7,7 @@ import cv2
 
 class SnowDataset(Dataset):
     '''snow dataset'''
-    def __init__(self, input_dir, target_dir, transform=None):
+    def __init__(self, input_dir, target_dir, img_list_path, transform=None):
         '''
         Args:
             input_dir: directory for snow images
@@ -14,7 +15,8 @@ class SnowDataset(Dataset):
         '''
         self.input_dir = input_dir
         self.target_dir = target_dir
-        self.img_names = os.listdir(input_dir)
+        with open(img_list_path, 'r') as f:
+            self.img_names = json.load(f)
         self.transform = transform
 
     def __len__(self):
@@ -33,19 +35,32 @@ class SnowDataset(Dataset):
         return input_img, target_img
 
 
-def get_data_loader(input_dir, target_dir, batch_size,
-                    transform=None, shuffle=False, num_workers=0):
+def get_data_loader(input_dir, target_dir, img_list_path, batch_size,
+                    transform=None, shuffle=True, num_workers=0):
     '''return data loader'''
     if transform is None:
         transform = transformer.Compose([
             transformer.Rescale((256, 256)),
+            transformer.Normalize(),
             transformer.ToTensor()
             ])
 
-    snow_dataset = SnowDataset(input_dir, target_dir, transform)
+    snow_dataset = SnowDataset(input_dir, target_dir, img_list_path, transform)
 
     data_loader = DataLoader(dataset=snow_dataset,
                              batch_size=batch_size,
                              shuffle=shuffle,
                              num_workers=num_workers)
     return data_loader
+
+
+if __name__ == '__main__':
+    input_dir = '../dataset/snow'
+    target_dir = '../dataset/original'
+    img_list_path = '../dataset/valid_img_list.json'
+    data_loader = get_data_loader(input_dir, target_dir, img_list_path, 7)
+
+    print(len(data_loader))
+    for i, (input_img, target_img) in enumerate(data_loader):
+        if not input_img.size() == target_img.size():
+            print('NOO!')

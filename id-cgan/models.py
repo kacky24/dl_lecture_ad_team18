@@ -16,9 +16,9 @@ class Generator(nn.Module):
         self.cbp5 = CBP(K // 2, 1, (3, 3), (1, 1), (1, 1))
         self.dbr0 = DBR(1, K // 2, (3, 3), (1, 1), (1, 1))
         self.dbr1 = DBR(K // 2, K, (3, 3), (1, 1), (1, 1))
-        self.dbr2 = DBR(K, K, (3, 3), (1, 1), (1, 1))
+        self.dbr2 = DBR(K * 2, K, (3, 3), (1, 1), (1, 1))
         self.dbr3 = DBR(K, K, (3, 3), (1, 1), (1, 1))
-        self.dbr4 = DBR(K, K, (3, 3), (1, 1), (1, 1))
+        self.dbr4 = DBR(K * 2, K, (3, 3), (1, 1), (1, 1))
         self.dbr5 = DBR(K, outchannel_num, (3, 3), (1, 1), (1, 1))
 
     def forward(self, images):
@@ -37,7 +37,8 @@ class Generator(nn.Module):
         de1 = self.dbr4(torch.cat((en1, de2), 1))
         de0 = self.dbr5(de1)
         # skip connection
-        out = F.Tanh(torch.cat((images, de0), 1))
+        # out = F.tanh(torch.cat((images, de0), 1))
+        out = F.tanh(de0)
 
         return out
 
@@ -46,7 +47,8 @@ class Discriminator(nn.Module):
     def __init__(self, inchannel_num, K=48):
         super(Discriminator, self).__init__()
         self.conv0 = nn.Conv2d(inchannel_num, K, (4, 4), (2, 2), (1, 1))
-        self.bn = nn.BatchNorm2d(K)
+        self.prelu = nn.PReLU()
+        # self.bn = nn.BatchNorm2d(K)
         self.cbp0 = CBP(K, 2*K, (4, 4), (2, 2), (1, 1))
         self.cbp1 = CBP(2*K, 4*K, (4, 4), (2, 2), (1, 1))
         self.cbp2 = CBP(4*K, 8*K, (4, 4), (1, 1), (1, 1))
@@ -59,11 +61,11 @@ class Discriminator(nn.Module):
         '''
         images = torch.cat((images1, images2), 1)
         features = self.conv0(images)
-        features = self.bn(features)
+        features = self.prelu(features)
         features = self.cbp0(features)
         features = self.cbp1(features)
         features = self.cbp2(features)
-        features = F.Sigmoid(self.conv1(features))
+        features = F.sigmoid(self.conv1(features))
 
         return features
 
@@ -115,6 +117,7 @@ class VggTransformar(nn.Module):
         modules = list(modules)[:9]
         self.vgg16 = nn.Sequential(*modules)
 
-    def forward(self, t_images, g_images):
-        features = self.vgg16(torch.cat((t_images, g_images), 1))
+    def forward(self, images):
+        features = self.vgg16(images)
+        # features = self.vgg16(torch.cat((t_images, g_images), 1))
         return features
