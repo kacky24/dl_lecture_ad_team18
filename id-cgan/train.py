@@ -5,6 +5,8 @@ import torch.nn as nn
 from torch.autograd import Variable
 from data_loader import get_data_loader
 from models import Generator, Discriminator, VggTransformar
+from utils import monitor_output_image
+import cv2
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
@@ -103,7 +105,7 @@ def main(args):
             optimizer_G.step()
 
             # print log
-            if i % 1000 == 0:
+            if i % 100 == 0:
                 print("Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, D_Loss: %.4f"
                       % (epoch, epoch_num, i + 1, total_step,
                           g_loss.data[0], d_loss.data[0]))
@@ -116,6 +118,13 @@ def main(args):
             'optimizer_g': optimizer_G.state_dict(),
             'optimizer_d': optimizer_D.state_dict()
             }, os.path.join(model_path, '%03d.ckpt' % (epoch)))
+
+        # monitor
+        g_imgs = generated_imgs.cpu().data.numpy()
+        t_imgs = target_imgs.cpu().data.numpy()
+        monitor_img = monitor_output_image(g_imgs[0], t_imgs[0])
+        cv2.imwrite('monitor_images/monitor_img%03d.jpg'
+                    % (epoch,), monitor_img)
 
 
 if __name__ == '__main__':
