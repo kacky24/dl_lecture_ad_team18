@@ -41,7 +41,8 @@ def get_data_loader(input_dir, target_dir, img_list_path, batch_size,
     '''return data loader'''
     if transform is None:
         transform = transformer.Compose([
-            transformer.Rescale((256, 256)),
+            transformer.Rescale((286, 286)),
+            transformer.RandomCrop((256, 256)),
             transformer.Normalize(),
             transformer.ToTensor()
             ])
@@ -61,7 +62,8 @@ if __name__ == '__main__':
     img_list_path = '../dataset/valid_img_list.json'
     data_loader = get_data_loader(input_dir, target_dir, img_list_path, 7)
 
-    print(len(data_loader))
     for i, (input_img, target_img) in enumerate(data_loader):
-        if i == 3:
+        if target_img.numpy().shape != (7, 3, 256, 256):
+            print(input_img.numpy().shape)
+        if i == 100:
             break

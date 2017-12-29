@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import cv2
 
@@ -29,7 +30,7 @@ class Normalize:
 class Rescale:
     '''Rescale the image to a given size
     Args:
-        output_size(int or tuple)
+        output_size(tuple)
     '''
     def __init__(self, output_size):
         assert isinstance(output_size, tuple)
@@ -42,6 +43,28 @@ class Rescale:
         target_img = cv2.resize(target_img, (new_h, new_w))
 
         return input_img, target_img
+
+
+class RandomCrop:
+    '''Crop the given ndarray at a random location
+    Args:
+        output_size(tuple)
+    '''
+    def __init__(self, output_size):
+        assert isinstance(output_size, tuple)
+        self.output_size = output_size
+
+    def __call__(self, input_img, target_img):
+        h, w = input_img.shape[:2]
+        new_h, new_w = self.output_size
+        if h == new_h and w == new_w:
+            return input_img, target_img
+        else:
+            x = np.random.randint(0, w - new_w + 1)
+            y = np.random.randint(0, h - new_h + 1)
+            input_img = input_img[y: y + new_h, x: x + new_w]
+            target_img = target_img[y: y + new_h, x: x + new_w]
+            return input_img, target_img
 
 
 class Compose:
