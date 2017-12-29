@@ -1,5 +1,6 @@
 import os
 import json
+import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import transformer
 import cv2
@@ -27,8 +28,8 @@ class SnowDataset(Dataset):
         input_path = os.path.join(self.input_dir, img_name)
         target_path = os.path.join(self.target_dir, img_name)
 
-        input_img = cv2.imread(input_path)
-        target_img = cv2.imread(target_path)
+        input_img = cv2.imread(input_path).astype(np.float32)
+        target_img = cv2.imread(target_path).astype(np.float32)
         if self.transform is not None:
             input_img, target_img = self.transform(input_img, target_img)
 
@@ -62,5 +63,5 @@ if __name__ == '__main__':
 
     print(len(data_loader))
     for i, (input_img, target_img) in enumerate(data_loader):
-        if not input_img.size() == target_img.size():
-            print('NOO!')
+        if i == 3:
+            break

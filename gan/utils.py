@@ -10,3 +10,12 @@ def monitor_output_image(generated_img, target_img):
 
 def denormalize(img):
     return (img + 1) * 127.5
+
+
+if __name__ == '__main__':
+    import cv2
+    img1 = cv2.imread('../dataset/original/9265.jpg')
+    # img2 = cv2.imread('../dataset/original/8526.jpg')
+    print(monitor_output_image(img1, img1).shape)
+    print(monitor_output_image(img1, img1).max())
+    print(monitor_output_image(img1, img1).min())

@@ -57,8 +57,8 @@ def main(args):
     # optimizer
     optimizer_G = torch.optim.Adam(G.parameters(), lr=0.002,
                                    betas=(0.5, 0.999))
-    optimizer_D = torch.optim.Adam(D.parameters(), lr=0.002,
-                                   betas=(0.5, 0.999))
+    optimizer_D = torch.optim.SGD(D.parameters(), lr=0.0002,
+                                  momentum=0.9, weight_decay=0.0005)
 
     # train
     epoch_num = args.epoch_num
@@ -141,7 +141,7 @@ if __name__ == '__main__':
                         default='../dataset/valid_img_list.json',
                         help='path for valid_img_list')
     parser.add_argument('--batch_size', type=int, default=7)
-    parser.add_argument('--epoch_num', type=int, default=10)
+    parser.add_argument('--epoch_num', type=int, default=100)
     parser.add_argument('--lambda_a', type=float, default=6.6e-3,
                         help='coefficient for adversarial loss')
     parser.add_argument('--lambda_e', type=float, default=1,
