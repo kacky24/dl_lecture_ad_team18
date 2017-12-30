@@ -43,6 +43,45 @@ class Generator(nn.Module):
         return out
 
 
+class GeneratorInLuaCode(nn.Module):
+    def __init__(self, inchannel_num, outchannel_num=3, K=64):
+        super(GeneratorInLuaCode, self).__init__()
+        self.conv = nn.Conv2d(inchannel_num, K, (3, 3), (1, 1), (1, 1))
+        self.lrelu = nn.LeakyReLU(negative_slope=0.2)
+        self.cbl0 = CBL(K, K, (3, 3), (1, 1), (1, 1))
+        self.cbl1 = CBL(K, K, (3, 3), (1, 1), (1, 1))
+        self.cbl2 = CBL(K, K, (3, 3), (1, 1), (1, 1))
+        self.cbl3 = CBL(K, K // 2, (3, 3), (1, 1), (1, 1))
+        self.cbl4 = CBL(K // 2, 1, (3, 3), (1, 1), (1, 1))
+        self.dbr0 = DBR(1, K // 2, (3, 3), (1, 1), (1, 1))
+        self.dbr1 = DBR(K // 2, K, (3, 3), (1, 1), (1, 1))
+        self.dbr2 = DBR(K * 2, K, (3, 3), (1, 1), (1, 1))
+        self.dbr3 = DBR(K, K, (3, 3), (1, 1), (1, 1))
+        self.dbr4 = DBR(K * 2, K, (3, 3), (1, 1), (1, 1))
+        self.dconv = nn.ConvTranspose2d(K, outchannel_num, 3, 1, 1)
+
+    def forward(self, images):
+        en0 = self.lrelu(self.conv(images))
+        en1 = self.cbl0(en0)
+        en2 = self.cbl1(en1)
+        en3 = self.cbl2(en2)
+        en4 = self.cbl3(en3)
+        en5 = self.cbl4(en4)
+        de5 = self.dbr0(en5)
+        de4 = self.dbr1(de5)
+        # skip connection
+        de3 = self.dbr2(torch.cat((en3, de4), 1))
+        de2 = self.dbr3(de3)
+        # skip connection
+        de1 = self.dbr4(torch.cat((en1, de2), 1))
+        de0 = self.dconv(de1)
+        # skip connection
+        # out = F.tanh(torch.cat((images, de0), 1))
+        out = F.tanh(de0)
+
+        return out
+
+
 class Discriminator(nn.Module):
     def __init__(self, inchannel_num, K=48):
         super(Discriminator, self).__init__()
@@ -70,6 +109,33 @@ class Discriminator(nn.Module):
         return features
 
 
+class DiscriminatorInLuaCode(nn.Module):
+    def __init__(self, inchannel_num, K=48):
+        super(DiscriminatorInLuaCode, self).__init__()
+        self.conv0 = nn.Conv2d(inchannel_num, K, (4, 4), (2, 2), (1, 1))
+        self.lrelu = nn.LeakyReLU(negative_slope=0.2)
+        # self.bn = nn.BatchNorm2d(K)
+        self.cbl0 = CBL(K, 2*K, (4, 4), (2, 2), (1, 1))
+        self.cbl1 = CBL(2*K, 4*K, (4, 4), (2, 2), (1, 1))
+        self.cbl2 = CBL(4*K, 8*K, (4, 4), (1, 1), (1, 1))
+        self.conv1 = nn.Conv2d(8*K, 1, (4, 4), (1, 1), (1, 1))
+
+    def forward(self, images1, images2):
+        '''
+        images1: snow images
+        images2: normal images or generated images
+        '''
+        images = torch.cat((images1, images2), 1)
+        features = self.conv0(images)
+        features = self.lrelu(features)
+        features = self.cbl0(features)
+        features = self.cbl1(features)
+        features = self.cbl2(features)
+        features = F.sigmoid(self.conv1(features))
+
+        return features
+
+
 class CBP(nn.Module):
     '''
     convolution - batchnormalization - prelu
@@ -81,6 +147,24 @@ class CBP(nn.Module):
                           k_size, stride, padding),
                 nn.BatchNorm2d(outchannel_num),
                 nn.PReLU()
+                )
+
+    def forward(self, features):
+        features = self.layers(features)
+        return features
+
+
+class CBL(nn.Module):
+    '''
+    convolution - batchnormalization - leaky_relu
+    '''
+    def __init__(self, inchannel_num, outchannel_num, k_size, stride, padding):
+        super(CBL, self).__init__()
+        self.layers = nn.Sequential(
+                nn.Conv2d(inchannel_num, outchannel_num,
+                          k_size, stride, padding),
+                nn.BatchNorm2d(outchannel_num),
+                nn.LeakyReLU(negative_slope=0.2)
                 )
 
     def forward(self, features):
