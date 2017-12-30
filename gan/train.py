@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from data_loader import get_data_loader
-from models import Generator, Discriminator, VggTransformar
+from models import idcgan_model
 from utils import monitor_output_image
 import cv2
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -36,15 +36,15 @@ def main(args):
                                   batch_size, shuffle=True, num_workers=6)
 
     # build model
-    G = Generator(3, 3)
-    D = Discriminator(6)
+    G = idcgan_model.GeneratorInLuaCode(3, 3)
+    D = idcgan_model.DiscriminatorInLuaCode(6)
     if torch.cuda.is_available():
         G = G.cuda()
         D = D.cuda()
 
     # loss
-    vgg_model = VggTransformar()
-    criterion_mse = nn.MSELoss()
+    vgg_model = idcgan_model.VggTransformar()
+    criterion_mse = nn.L1Loss()
     criterion_bce = nn.BCELoss()
     if torch.cuda.is_available():
         vgg_model = vgg_model.cuda()
@@ -57,12 +57,16 @@ def main(args):
     # optimizer
     optimizer_G = torch.optim.Adam(G.parameters(), lr=0.002,
                                    betas=(0.5, 0.999))
-    optimizer_D = torch.optim.SGD(D.parameters(), lr=0.0002,
-                                  momentum=0.9, weight_decay=0.0005)
+    optimizer_D = torch.optim.Adam(D.parameters(), lr=0.0002,
+                                   betas=(0.5, 0.999))
+    # optimizer_D = torch.optim.SGD(D.parameters(), lr=0.0002,
+    #                               momentum=0.9, weight_decay=0.0005)
 
     # train
     epoch_num = args.epoch_num
     total_step = len(data_loader)
+
+    statement = "Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, g_loss_a: %.4f, g_loss_e: %.4f, g_loss_p: %.4f, D_Loss: %.4f"
 
     for epoch in range(1, epoch_num + 1):
         for i, (input_imgs, target_imgs) in enumerate(data_loader):
@@ -105,10 +109,15 @@ def main(args):
             optimizer_G.step()
 
             # print log
+            # if i % 100 == 0:
+            #     print("Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, D_Loss: %.4f"
+            #           % (epoch, epoch_num, i + 1, total_step,
+            #               g_loss.data[0], d_loss.data[0]))
+
             if i % 100 == 0:
-                print("Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, D_Loss: %.4f"
-                      % (epoch, epoch_num, i + 1, total_step,
-                          g_loss.data[0], d_loss.data[0]))
+                print(statement % (epoch, epoch_num, i + 1, total_step,
+                      g_loss.data[0], g_loss_a.data[0], g_loss_e.data[0],
+                      g_loss_p.data[0], d_loss.data[0]))
 
         # save
         save_checkpoint({
@@ -121,8 +130,9 @@ def main(args):
 
         # monitor
         g_imgs = generated_imgs.cpu().data.numpy()
-        t_imgs = target_imgs.cpu().data.numpy()
-        monitor_img = monitor_output_image(g_imgs[0], t_imgs[0])
+        # t_imgs = target_imgs.cpu().data.numpy()
+        i_imgs = input_imgs.cpu().data.numpy()
+        monitor_img = monitor_output_image(g_imgs[0], i_imgs[0])
         cv2.imwrite('monitor_images/monitor_img%03d.jpg'
                     % (epoch,), monitor_img)
 
