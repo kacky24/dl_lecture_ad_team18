@@ -10,4 +10,4 @@ __pycache__/
 *.swp
 
 gan/pretrained_models/*
-!.gitkeep
+!get_pretrained_model.sh
