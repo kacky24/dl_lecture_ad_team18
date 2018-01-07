@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from data_loader import get_data_loader
-from models import idcgan_model
+from models import pix2pix_model
 from utils import monitor_output_image
 import cv2
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -27,6 +27,10 @@ def main(args):
     if not os.path.exists(model_path):
         os.makedirs(model_path)
 
+    monitor_path = args.monitor_path
+    if not os.path.exists(monitor_path):
+        os.makedirs(monitor_path)
+
     # load data_loader
     input_dir = args.input_dir
     target_dir = args.target_dir
@@ -36,39 +40,32 @@ def main(args):
                                   batch_size, shuffle=True, num_workers=6)
 
     # build model
-    G = idcgan_model.GeneratorInLuaCode(3, 3)
-    D = idcgan_model.DiscriminatorInLuaCode(6)
+    G = pix2pix_model.Generator(3, 3)
+    D = pix2pix_model.Discriminator70(6)
     if torch.cuda.is_available():
         G = G.cuda()
         D = D.cuda()
 
-    # loss
-    vgg_model = idcgan_model.VggTransformar()
-    criterion_mse = nn.MSELoss()
+    criterion_l1 = nn.L1Loss()
     criterion_bce = nn.BCELoss()
     if torch.cuda.is_available():
-        vgg_model = vgg_model.cuda()
-        criterion_mse = criterion_mse.cuda()
+        criterion_l1 = criterion_l1.cuda()
         criterion_bce = criterion_bce.cuda()
     lambda_a = args.lambda_a
-    lambda_e = args.lambda_e
-    lambda_p = args.lambda_p
+    lambda_l1 = args.lambda_l1
 
     # optimizer
-    optimizer_G = torch.optim.Adam(G.parameters(), lr=0.002,
-                                   betas=(0.5, 0.999))
-    optimizer_D = torch.optim.Adam(D.parameters(), lr=0.002,
-                                   betas=(0.5, 0.999))
-    # optimizer_D = torch.optim.SGD(D.parameters(), lr=0.0002,
-    #                               momentum=0.9, weight_decay=0.0005)
+    optimizer_G = torch.optim.Adam(G.parameters(), lr=0.0002,
+                                   betas=(0.5, 0.999), weight_decay=0.00001)
+    optimizer_D = torch.optim.Adam(D.parameters(), lr=0.0002,
+                                   betas=(0.5, 0.999), weight_decay=0.00001)
 
     # train
     epoch_num = args.epoch_num
     total_step = len(data_loader)
 
-    statement = "Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, g_loss_a: %.4f, g_loss_e: %.4f, g_loss_p: %.4f, D_Loss: %.4f"
+    statement = "Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, g_loss_a: %.4f, g_loss_l1: %.4f, D_Loss: %.4f"
 
-    flag = False
     for epoch in range(1, epoch_num + 1):
         for i, (input_imgs, target_imgs) in enumerate(data_loader):
             input_imgs = to_var(input_imgs)
@@ -78,58 +75,36 @@ def main(args):
             generated_imgs = G(input_imgs)
 
             # update discriminator
-            if flag is False:
-                optimizer_D.zero_grad()
-                negative_examples = D(input_imgs, generated_imgs.detach())
-                positive_examples = D(input_imgs, target_imgs)
+            optimizer_D.zero_grad()
+            negative_examples = D(input_imgs, generated_imgs.detach())
+            positive_examples = D(input_imgs, target_imgs)
 
-                zero_labels = Variable(torch.zeros(negative_examples.size()))
-                one_labels = Variable(torch.ones(positive_examples.size()))
-                if torch.cuda.is_available():
-                    zero_labels = zero_labels.cuda()
-                    one_labels = one_labels.cuda()
+            zero_labels = Variable(torch.zeros(negative_examples.size()))
+            one_labels = Variable(torch.ones(positive_examples.size()))
+            if torch.cuda.is_available():
+                zero_labels = zero_labels.cuda()
+                one_labels = one_labels.cuda()
 
-                d_loss = 0.5 * (
-                    criterion_bce(negative_examples, zero_labels) +
-                    criterion_bce(positive_examples, one_labels)
-                    )
-                d_loss.backward()
-                optimizer_D.step()
+            d_loss = 0.5 * (
+                criterion_bce(negative_examples, zero_labels) +
+                criterion_bce(positive_examples, one_labels)
+                )
+            d_loss.backward()
+            optimizer_D.step()
 
             # update generator
             optimizer_G.zero_grad()
             negative_examples = D(input_imgs, generated_imgs)
-
-            one_labels = Variable(torch.ones(negative_examples.size()))
-            if torch.cuda.is_available():
-                one_labels = one_labels.cuda()
-
             g_loss_a = criterion_bce(negative_examples, one_labels)
-            g_loss_e = criterion_mse(generated_imgs, target_imgs)
-            g_loss_p = criterion_mse(vgg_model(generated_imgs),
-                                     Variable(vgg_model(target_imgs).data,
-                                              requires_grad=False)
-                                     )
-            g_loss = lambda_a * g_loss_a + lambda_e * g_loss_e + \
-                lambda_p * g_loss_p
+            g_loss_l1 = criterion_l1(generated_imgs, target_imgs)
+            g_loss = lambda_a * g_loss_a + lambda_l1 * g_loss_l1
             g_loss.backward()
             optimizer_G.step()
 
-            if g_loss_a.data.mean() > 2:
-                flag = True
-            else:
-                flag = False
-
-            # print log
-            # if i % 100 == 0:
-            #     print("Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, D_Loss: %.4f"
-            #           % (epoch, epoch_num, i + 1, total_step,
-            #               g_loss.data[0], d_loss.data[0]))
-
-            if i % 100 == 0:
+            if i % 500 == 0:
                 print(statement % (epoch, epoch_num, i + 1, total_step,
-                      g_loss.data.mean(), g_loss_a.data.mean(), g_loss_e.data.mean(),
-                      g_loss_p.data.mean(), d_loss.data.mean()))
+                      g_loss.data.mean(), g_loss_a.data.mean(), g_loss_l1.data.mean(),
+                      d_loss.data.mean()))
 
         # save
         save_checkpoint({
@@ -145,14 +120,18 @@ def main(args):
         # t_imgs = target_imgs.cpu().data.numpy()
         i_imgs = input_imgs.cpu().data.numpy()
         monitor_img = monitor_output_image(g_imgs[0], i_imgs[0])
-        cv2.imwrite('monitor_images/monitor_img%03d.jpg'
+        cv2.imwrite(os.path.join(monitor_path, 'monitor_img%03d.jpg')
                     % (epoch,), monitor_img)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='pretrained_models',
+    parser.add_argument('--model_path', type=str,
+                        default='pretrained_models/pix2pix',
                         help='path for saving trained models')
+    parser.add_argument('--monitor_path', type=str,
+                        default='monitor_images/pix2pix',
+                        help='path for saving monitor images')
     parser.add_argument('--input_dir', type=str,
                         default='../dataset/snow',
                         help='path for snow image directory')
@@ -162,14 +141,12 @@ if __name__ == '__main__':
     parser.add_argument('--img_list_path', type=str,
                         default='../dataset/valid_img_list.json',
                         help='path for valid_img_list')
-    parser.add_argument('--batch_size', type=int, default=7)
+    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--epoch_num', type=int, default=200)
-    parser.add_argument('--lambda_a', type=float, default=6.6e-3,
+    parser.add_argument('--lambda_a', type=float, default=0.01,
                         help='coefficient for adversarial loss')
-    parser.add_argument('--lambda_e', type=float, default=1,
+    parser.add_argument('--lambda_l1', type=float, default=1,
                         help='coefficient for per-pixel loss')
-    parser.add_argument('--lambda_p', type=float, default=1,
-                        help='coefficient for perceptual loss')
 
     args = parser.parse_args()
 
