@@ -14,6 +14,7 @@
 - python 3.5.3
 - numpy 1.13.3
 - matplotlib 2.0.2
+- jupyter 1.0.0
 - torch 0.2.0
 - torchvision 0.1.9
 - opencv-python 3.3.1.11
