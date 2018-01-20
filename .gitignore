@@ -1,6 +1,6 @@
 # dataset
 dataset/*
-!get_data.sh
+!get_data*
 
 .python-version
 .ipynb_checkpoints
@@ -8,5 +8,5 @@ __pycache__/
 
 *.swp
 
-gan/pretrained_models/*
+pix2pix_and_idcgan/pretrained_models/*
 !get_pretrained_model.sh
