@@ -67,6 +67,24 @@ class RandomCrop:
             return input_img, target_img
 
 
+class RandomHorizontalFlip:
+    '''Flip the image horizontally and randomly'''
+    def __init__(self, rate=0.5):
+        '''
+        Args:
+            rate: the rate flip is applied at
+        '''
+        self.rate = rate
+
+    def __call__(self, input_img, target_img):
+        if np.random.rand() > self.rate:
+            return input_img, target_img
+        else:
+            input_img = input_img[:, ::-1, :].copy()
+            target_img = target_img[:, ::-1, :].copy()
+            return input_img, target_img
+
+
 class Compose:
     """
     Composes several transforms together.
