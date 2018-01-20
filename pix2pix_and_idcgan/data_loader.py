@@ -43,6 +43,7 @@ def get_data_loader(input_dir, target_dir, img_list_path, batch_size,
         transform = transformer.Compose([
             transformer.Rescale((286, 286)),
             transformer.RandomCrop((256, 256)),
+            transformer.RandomHorizontalFlip(),
             transformer.Normalize(),
             transformer.ToTensor()
             ])
