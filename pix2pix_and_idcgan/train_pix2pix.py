@@ -7,7 +7,7 @@ from data_loader import get_data_loader
 from models import pix2pix_model
 from utils import monitor_output_image
 import cv2
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 
 def to_var(x, volatile=False):
@@ -64,7 +64,8 @@ def main(args):
     epoch_num = args.epoch_num
     total_step = len(data_loader)
 
-    statement = "Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, g_loss_a: %.4f, g_loss_l1: %.4f, D_Loss: %.4f"
+    statement = "Epoch [%d/%d], Step [%d/%d], G_Loss: %.4f, " + \
+                "g_loss_a: %.4f, g_loss_l1: %.4f, D_Loss: %.4f"
 
     for epoch in range(1, epoch_num + 1):
         for i, (input_imgs, target_imgs) in enumerate(data_loader):
@@ -101,48 +102,49 @@ def main(args):
             g_loss.backward()
             optimizer_G.step()
 
-            if i % 500 == 0:
+            if i % 100 == 0:
                 print(statement % (epoch, epoch_num, i + 1, total_step,
-                      g_loss.data.mean(), g_loss_a.data.mean(), g_loss_l1.data.mean(),
-                      d_loss.data.mean()))
+                      g_loss.data.mean(), g_loss_a.data.mean(),
+                      g_loss_l1.data.mean(), d_loss.data.mean()))
 
         # save
-        save_checkpoint({
-            'epoch': epoch,
-            'state_dict_g': G.state_dict(),
-            'state_dict_d': D.state_dict(),
-            'optimizer_g': optimizer_G.state_dict(),
-            'optimizer_d': optimizer_D.state_dict()
-            }, os.path.join(model_path, '%03d.ckpt' % (epoch)))
+        if epoch % 4 == 0:
+            save_checkpoint({
+                'epoch': epoch,
+                'state_dict_g': G.state_dict(),
+                'state_dict_d': D.state_dict(),
+                'optimizer_g': optimizer_G.state_dict(),
+                'optimizer_d': optimizer_D.state_dict()
+                }, os.path.join(model_path, '%03d.ckpt' % (epoch)))
 
-        # monitor
-        g_imgs = generated_imgs.cpu().data.numpy()
-        # t_imgs = target_imgs.cpu().data.numpy()
-        i_imgs = input_imgs.cpu().data.numpy()
-        monitor_img = monitor_output_image(g_imgs[0], i_imgs[0])
-        cv2.imwrite(os.path.join(monitor_path, 'monitor_img%03d.jpg')
-                    % (epoch,), monitor_img)
+            # monitor
+            g_imgs = generated_imgs.cpu().data.numpy()
+            # t_imgs = target_imgs.cpu().data.numpy()
+            i_imgs = input_imgs.cpu().data.numpy()
+            monitor_img = monitor_output_image(g_imgs[0], i_imgs[0])
+            cv2.imwrite(os.path.join(monitor_path, 'monitor_img%03d.jpg')
+                        % (epoch,), monitor_img)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str,
-                        default='pretrained_models/pix2pix',
+                        default='pretrained_models/pix2pix/all',
                         help='path for saving trained models')
     parser.add_argument('--monitor_path', type=str,
-                        default='monitor_images/pix2pix',
+                        default='monitor_images/pix2pix/all',
                         help='path for saving monitor images')
     parser.add_argument('--input_dir', type=str,
-                        default='../dataset/snow',
+                        default='../dataset/train_all/snow',
                         help='path for snow image directory')
     parser.add_argument('--target_dir', type=str,
-                        default='../dataset/original',
+                        default='../dataset/train_all/original',
                         help='path for origial image directory')
     parser.add_argument('--img_list_path', type=str,
-                        default='../dataset/valid_img_list.json',
+                        default='../dataset/valid_img_list3.json',
                         help='path for valid_img_list')
     parser.add_argument('--batch_size', type=int, default=1)
-    parser.add_argument('--epoch_num', type=int, default=200)
+    parser.add_argument('--epoch_num', type=int, default=600)
     parser.add_argument('--lambda_a', type=float, default=0.01,
                         help='coefficient for adversarial loss')
     parser.add_argument('--lambda_l1', type=float, default=1,
